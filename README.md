@@ -250,28 +250,6 @@ uv run mypy src/
 
 ## Dependencies
 
-### Core Dependencies
-- **mne** >= 1.6.0: EEG data processing
-- **mne-bids** >= 0.15.0: BIDS format support
-- **polars** >= 0.20.0: Efficient data processing
-- **numpy** >= 1.25.0: Numerical computing
-- **pandas** >= 2.1.0: Data manipulation (MNE compatibility)
-- **scipy** >= 1.11.0: Scientific computing
-
-### Machine Learning & Artifacts
-- **scikit-learn** >= 1.3.0: Machine learning utilities
-- **autoreject** >= 0.4.0: Automatic artifact rejection
-
-### Visualization
-- **matplotlib** >= 3.8.0: Plotting
-- **seaborn** >= 0.13.0: Statistical visualization
-
-### Development Tools
-- **black** >= 23.0.0: Code formatting
-- **ruff** >= 0.1.0: Linting and formatting
-- **mypy** >= 1.7.0: Type checking
-- **pytest** >= 7.4.0: Testing framework
-
 ## Output Files
 
 The pipeline generates the following output files for each subject:
@@ -299,44 +277,6 @@ The pipeline includes comprehensive quality control:
 - **Data Validation**: BIDS structure validation and file integrity checks
 - **Processing Logs**: Detailed logging of all processing stages
 - **Checkpoint System**: Save/load intermediate results for debugging
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Memory Errors**: Reduce `n_components` for ICA or process in smaller batches
-2. **Channel Detection**: Adjust thresholds in configuration file
-3. **Event Coding**: Verify trigger codes match your experimental setup
-4. **BIDS Validation**: Ensure data follows BIDS format requirements
-
-### Debug Mode
-
-Enable verbose logging:
-```bash
-uv run eeg-pipeline --bids-root /path/to/bids --output /path/to/output --subject sub-01 --verbose
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```
-Prior RDM Analysis: Python Implementation of EEG Preprocessing for Adaptive Control Experiments
-Julius Kricheldorff
-https://github.com/shichik07/Prior_RDM_Analysis
-```
 
 ## Contact
 
