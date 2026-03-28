@@ -51,6 +51,14 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# data files
+data/
+.csv
+.parquet
+.eeg
+.vhdr
+.vmrk
+
 # Translations
 *.mo
 *.pot
