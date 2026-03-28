@@ -2,7 +2,7 @@
 ## MATLAB to Python Migration using MNE
 
 ### Overview
-This document outlines the implementation plan for migrating the MATLAB EEG preprocessing pipeline (EEGLAB-based) to Python using the MNE package. The original pipeline processes adaptive control experiment data through multiple stages including event coding, filtering, artifact removal, ICA, and epoching.
+This document outlines the implementation plan for migrating the MATLAB EEG preprocessing pipeline (EEGLAB-based) to Python using the MNE package. The original pipeline processes random-dot motion experiment data through multiple stages including event coding, filtering, artifact removal, ICA, and epoching.
 
 ### Original MATLAB Pipeline Summary
 
@@ -18,13 +18,13 @@ This document outlines the implementation plan for migrating the MATLAB EEG prep
 - Set FCz as reference
 
 #### 3. Event Coding & Annotation
-Complex event recoding system based on trigger codes (SXXX format):
-- **Part**: Onset, Response, Fixation, Start/End Block
-- **AnalyseType**: MI, MC, main_incon, main_con
-- **Congruency**: congruent, incongruent
-- **Trial**: inducer, diagnostic
-- **Answer**: correct, incorrect
-- Handle incorrect response events by renaming preceding onset events
+Random-dot motion task event coding system based on trigger codes:
+- **Part**: Practice Start/End, Start/End Block, Fixation, Onset, Response
+- **Info Condition**: Mono_info, Null_info, Part_info, Full_info
+- **Coherence**: low1, low2, high1, high2 (4 coherence levels)
+- **Response Type**: Onset, response, late, none
+- **Response Accuracy**: Onset, correct, false, late, none
+- Response codes are independent events (no onset renaming like stroop task)
 
 #### 4. Temporal Processing
 - Resample to 250 Hz
@@ -91,11 +91,11 @@ from mne.preprocessing import ICA
 
 **Key Functions**:
 - `code_events(raw)` - Main event coding function
-- `parse_sxxx_code(event_code)` - Parse SXXX trigger codes
+- `parse_sxxx_code(event_code)` - Parse random-dot motion trigger codes
 - `create_event_metadata(events)` - Create metadata DataFrame
-- `handle_incorrect_responses(events)` - Rename preceding onset events
+- `handle_incorrect_responses(events)` - Handle response events (independent in motion task)
 
-**Concept**: Translate the complex MATLAB SXXX coding system to Python, handling event categorization (part, analysetype, congruency, trial, answer) and managing incorrect response event renaming logic.
+**Concept**: Translate the random-dot motion task coding system to Python, handling event categorization (part, info_condition, coherence, response_type, response_accuracy) and managing response events as independent triggers.
 
 ### Phase 4: Main Preprocessing Pipeline
 
