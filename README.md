@@ -1,292 +1,159 @@
 # Prior RDM Analysis
 
-A comprehensive Python implementation of EEG preprocessing for decision-making experiments in Parkinson's disease research, migrating from MATLAB/EEGLAB to modern Python/MNE-Python with polars for efficient data processing.
+EEG and behavioural analysis pipeline for *Informed Visual Decisions in Parkinson's Disease* — Carl von Ossietzky Universität Oldenburg.
 
-## Project Summary
+The study examines whether PD patients fail to incorporate prior directional information into both the starting point *and* the drift rate of evidence accumulation, using a random-dot-motion paradigm with four prior conditions (uninformative, mono, partial, full).
 
-This project investigates decision-making impairments in Parkinson's disease (PD) using drift diffusion modeling (DDM) and EEG analysis. Building on Perugini et al.'s discovery that PD patients cannot incorporate prior information into decisions, we examine whether this deficit extends beyond starting point adjustments to drift rate adaptations. Our study tests if informing participants about decision-relevant information (rather than outcome probabilities) reveals different patterns of impairment in PD versus healthy controls.
-
-The comprehensive EEG preprocessing pipeline ensures high-quality neural data for DDM analysis, implementing advanced artifact removal, ICA decomposition, and BIDS-compatible processing. Originally developed in MATLAB/EEGLAB, this Python implementation leverages modern neuroimaging tools (MNE-Python) and efficient data processing (polars) to support rigorous investigation of prior information processing deficits in PD. The pipeline preserves decision-related neural signals while removing noise, enabling precise measurement of cognitive mechanisms underlying impaired decision-making in neurological disorders.
-
-This project provides a complete preprocessing pipeline for EEG data from decision-making experiments in Parkinson's disease research, originally implemented in MATLAB using EEGLAB. The Python implementation maintains all original functionality while leveraging modern neuroimaging tools and efficient data processing with polars.
-
-## Features
-
-- **Complete EEG Preprocessing Pipeline**: Full migration from MATLAB EEGLAB to Python MNE-Python
-- **Complex Event Coding System**: Implements the SXXX trigger code parsing for experimental conditions
-- **Advanced Artifact Removal**: ASR replacement using autoreject, ICA decomposition, and channel interpolation
-- **BIDS Compatibility**: Full support for BIDS-formatted EEG data
-- **Modern Python Stack**: Python 3.12, uv package manager, polars for data processing
-- **Modular Architecture**: Clean separation of concerns across 6 specialized modules
-- **Checkpoint System**: Robust intermediate result saving and loading
-- **Command-Line Interface**: Easy batch processing and single-subject analysis
-- **Quality Control**: Comprehensive logging and validation throughout the pipeline
+---
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.12 or higher
-- [uv](https://github.com/astral-sh/uv) package manager (recommended)
-
-### Quick Start with uv
+**Requires Python 3.12+ and [uv](https://github.com/astral-sh/uv).**
 
 ```bash
-# Clone the repository
 git clone https://github.com/shichik07/Prior_RDM_Analysis.git
 cd Prior_RDM_Analysis
-
-# Install dependencies with uv
 uv sync
-
-# Install development dependencies (optional)
-uv sync --extra dev
-
-# Install full environment with docs
-uv sync --extra full
 ```
 
-### Alternative: pip Installation
+> **External drive**: raw EEG data lives on `E:\priorRDM\Study\EEGData` and is never committed to the repository. Processed outputs go to `data/processed/` (also git-ignored).
 
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+---
 
-# Install dependencies
-pip install -e .
-```
-
-## Project Structure
+## Project structure
 
 ```
 Prior_RDM_Analysis/
 ├── src/
-│   └── extract/
-│       ├── __init__.py              # Package initialization
-│       ├── loading.py               # BIDS data loading and validation
-│       ├── events.py                # SXXX event coding system
-│       ├── preprocessing.py         # Core preprocessing pipeline
-│       ├── artifacts.py             # Artifact removal and ICA
-│       ├── epoching.py              # Final processing and epoching
-│       ├── utils.py                 # Utilities and checkpoint system
-│       ├── main_pipeline.py         # Command-line interface
-│       └── test_pipeline.py         # Testing framework
-├── plan/
-│   └── eeg/
-│       └── EEG_Preprocessing_Implementation_Plan.md
-├── pyproject.toml                   # Project configuration
-└── README.md
+│   ├── extract/
+│   │   └── eeg/
+│   │       ├── run_pipeline.py   # single-subject EEG preprocessing
+│   │       └── run_all.py        # batch wrapper
+│   ├── transform/
+│   │   └── behavior/
+│   │       └── preprocess.py     # behavioural data cleaning (Polars)
+│   └── output/
+│       └── behavior/
+│           ├── plots.py          # RT / accuracy figures
+│           └── psychometric_plots.py
+├── pyproject.toml
+└── uv.lock
 ```
 
-## Usage
+---
 
-### Command Line Interface
+## EEG preprocessing
 
-Process a single subject:
+### Pipeline overview (`run_pipeline.py`)
+
+The pipeline runs entirely in-memory (no BIDS layout required) and produces analysis-ready epochs for a single subject. Steps:
+
+| # | Step | Details |
+|---|------|---------|
+| 1 | Load BrainVision | Patches internal filename mismatch in `.vhdr`; converts to `RawArray` |
+| 2 | Channel config | HEOG/VEOG → EOG type; FCz added as zero-data channel (online reference) |
+| 3 | Montage | `standard_1020`; unrecognised channels silently ignored |
+| 4 | Extract events | `mne.events_from_annotations()` — triggers stored as annotations |
+| 5 | Filter | HP 0.1 Hz (FIR zero-phase) + notch 50 / 100 / 150 Hz |
+| 6 | Resample | Downsample to 250 Hz (filter applied **before** resample) |
+| 7 | Experiment bounds | Pre- and post-experiment segments annotated as `BAD` |
+| 8 | Bad channels | Flatline detection (SD < 0.5 µV); visual inspection deferred to PREP-03 |
+| 9 | Reference | Average reference (FCz included) |
+| 10 | ICA | 20 components, Picard (quasi-Newton), seed = 97; auto EOG detection |
+| 11 | Apply ICA | Artefact components removed; bad channels interpolated |
+| 12 | Stimulus epochs | Onset codes 31–64, −200 to 1000 ms, baseline −200 to 0 ms |
+| 13 | Response epochs | Response codes 131–168, −1000 to 500 ms, baseline −1000 to −800 ms |
+| 14 | Epoch rejection | EEG > 100 µV or EOG > 200 µV dropped |
+| 15 | Save + QC | `.fif` files, metadata CSVs, CPP ERP quality-control figure |
+
+**Outputs** (written to `data/processed/eeg/<subject>/`):
+
+```
+<subject>_preprocessed_raw.fif
+<subject>_ica.fif
+<subject>_epochs_stimulus.fif
+<subject>_epochs_response.fif
+<subject>_epoch_metadata_stimulus.csv
+<subject>_epoch_metadata_response.csv
+<subject>_cpp_qc.png
+<subject>_processing_log.txt
+```
+
+### Running the pipeline
+
+**Single subject:**
 ```bash
-uv run eeg-pipeline --bids-root /path/to/bids --output /path/to/output --subject sub-01
+python src/extract/eeg/run_pipeline.py --subject ANA60
 ```
 
-Process all subjects:
+**All subjects** (auto-discovers folders in `E:\priorRDM\Study\EEGData`):
 ```bash
-uv run eeg-pipeline --bids-root /path/to/bids --output /path/to/output
+python src/extract/eeg/run_all.py
 ```
 
-Process specific subjects:
+**Specific subjects:**
 ```bash
-uv run eeg-pipeline --bids-root /path/to/bids --output /path/to/output --subjects sub-01 sub-02 sub-03
+python src/extract/eeg/run_all.py --subject ANA60 ANA61 ANA62
 ```
 
-Create configuration file:
+**Skip already-processed subjects** (safe to resume after interruption):
 ```bash
-uv run eeg-pipeline --create-config /path/to/config.json
+python src/extract/eeg/run_all.py --skip-done
 ```
 
-### Python API
-
-```python
-from src.extract import (
-    load_eeg_data, 
-    code_events, 
-    preprocess_pipeline,
-    detect_bad_channels,
-    ica_pipeline,
-    final_processing
-)
-from src.extract.artifacts import apply_line_noise_removal, asr_replacement
-
-# Load data
-raw = load_eeg_data('sub-01', '/path/to/bids')
-
-# Process events
-events, metadata = code_events(raw)
-
-# Preprocess
-raw = preprocess_pipeline(raw, metadata)
-
-# Artifact removal
-raw, rejected_info = detect_bad_channels(raw)
-raw = apply_line_noise_removal(raw)
-raw = asr_replacement(raw)
-
-# ICA
-ica = ica_pipeline(raw)
-
-# Final processing
-epochs = final_processing(raw, ica, metadata, 'sub-01', '/path/to/output')
+**Dry-run** (list subjects without processing):
+```bash
+python src/extract/eeg/run_all.py --dry-run
 ```
 
-## Pipeline Stages
+### Trigger code scheme
 
-### 1. Data Loading
-- Load BIDS-formatted EEG data using MNE-BIDS
-- Validate directory structure and file integrity
-- Support for BrainVision (.vhdr) and other formats
+Stimulus onsets are encoded as `10 × condition + coherence`:
 
-### 2. Event Processing
-- Complex SXXX trigger code parsing
-- Experimental condition categorization:
-  - **Part**: Onset, Response, Fixation, Start/End Block
-  - **AnalyseType**: MI, MC, main_incon, main_con
-  - **Congruency**: congruent, incongruent
-  - **Trial**: inducer, diagnostic
-  - **Answer**: correct, incorrect
-- Incorrect response event renaming
+| Condition | Codes |
+|-----------|-------|
+| Mono | 31–34 |
+| Di null (uninformative) | 41–44 |
+| Di partial | 51–54 |
+| Di full | 61–64 |
 
-### 3. Preprocessing
-- Channel configuration (EEG/EOG types, FCz addition)
-- Resampling to 250 Hz
-- Temporal data rejection (outside experimental blocks)
-- Highpass filtering (0.1 Hz)
-- Detrending
-- FCz average referencing
+Response triggers (correct / incorrect × 4 conditions × 4 units) span 131–168.
 
-### 4. Artifact Removal
-- Automatic bad channel detection
-- Line noise removal (50 Hz)
-- ASR-like burst rejection using autoreject
-- ICA decomposition with component selection
-- Channel interpolation
+### CPP quality-control figure
 
-### 5. Epoching
-- Epoch extraction (-0.2 to 1.0 seconds around stimuli)
-- Metadata preservation
-- Quality control metrics
-- Evoked response computation
+`_cpp_qc.png` shows the centro-parietal positivity (CPP) for all accepted epochs:
 
-## Configuration
+- **Left column**: stimulus-locked ERP (−200 to 1000 ms), peak topomap at 200–1000 ms window
+- **Right column**: response-locked ERP (−1000 to 500 ms), peak topomap at −400 to +50 ms
+- CPP channels: Pz, CPz, P1, P2, P3, P4, CP1, CP2, CP3, CP4, POz
 
-The pipeline supports extensive configuration through JSON files:
+---
 
-```json
-{
-  "preprocessing": {
-    "resample_freq": 250,
-    "highpass_freq": 0.1,
-    "line_noise_freq": 50,
-    "reference_channel": "FCz"
-  },
-  "artifacts": {
-    "flatline_threshold": 1e-6,
-    "correlation_threshold": 0.8,
-    "line_noise_threshold": 5,
-    "n_components": 20
-  },
-  "epoching": {
-    "tmin": -0.2,
-    "tmax": 1.0,
-    "baseline": null
-  }
-}
-```
-
-## Data Processing with Polars
-
-While MNE-Python handles the neuroimaging data, polars is used for efficient processing of:
-- Event metadata and experimental conditions
-- Quality control metrics
-- Processing logs and summaries
-- Statistical analyses and aggregations
-
-## Development
-
-### Setup Development Environment
+## Behavioural preprocessing
 
 ```bash
-# Install development dependencies
-uv sync --extra dev
+# Clean and validate raw PsychoPy output
+python src/transform/behavior/preprocess.py
 
-# Set up pre-commit hooks
-pre-commit install
+# Figures (RT distributions, accuracy, psychometric curves)
+python src/output/behavior/plots.py
+python src/output/behavior/psychometric_plots.py
 ```
 
-### Testing
+---
+
+## Code quality
 
 ```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=src
-
-# Run specific test categories
-uv run pytest -m "not slow"  # Skip slow tests
-uv run pytest -m integration  # Only integration tests
-```
-
-### Code Quality
-
-```bash
-# Format code
 uv run black src/
-
-# Lint code
 uv run ruff check src/
-
-# Type checking
 uv run mypy src/
+uv run pytest
 ```
 
-## Dependencies
-
-## Output Files
-
-The pipeline generates the following output files for each subject:
-
-```
-output_dir/
-└── sub-01/
-    └── eeg/
-        ├── sub-01_preprocessed_raw.fif      # Preprocessed continuous data
-        ├── sub-01_ica.fif                   # ICA components
-        ├── sub-01_epoched.fif               # Final epochs
-        ├── sub-01_metadata.csv              # Event metadata
-        ├── checkpoints/                     # Intermediate results
-        ├── figures/                         # Quality control plots
-        └── logs/
-            └── sub-01_processing_log.json   # Processing log
-```
-
-## Quality Control
-
-The pipeline includes comprehensive quality control:
-
-- **Channel Quality**: Automatic detection of flat, noisy, and correlated channels
-- **Artifact Detection**: ASR-like burst rejection and ICA component analysis
-- **Data Validation**: BIDS structure validation and file integrity checks
-- **Processing Logs**: Detailed logging of all processing stages
-- **Checkpoint System**: Save/load intermediate results for debugging
+---
 
 ## Contact
 
-- **Julius Kricheldorff**: julius@kricheldorff.de
-- **Project Homepage**: https://julius-kricheldorff.com/
-- **Repository**: https://github.com/shichik07/Prior_RDM_Analysis
-
-## Acknowledgments
-
-- Original MATLAB implementation by Julius Kricheldorff and Julia Ficke
-- MNE-Python team for the excellent neuroimaging toolkit
-- Polars team for efficient data processing framework
-- EEGlab community for the original preprocessing methods
+Julius Kricheldorff — julius@kricheldorff.de  
+Repository: https://github.com/shichik07/Prior_RDM_Analysis

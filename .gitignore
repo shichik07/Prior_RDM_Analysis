@@ -51,13 +51,42 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# data files
+# ── Data & processed outputs (never commit raw or processed data) ──────────
 data/
-.csv
-.parquet
-.eeg
-.vhdr
-.vmrk
+results/
+
+# EEG / neuroimaging formats
+*.eeg
+*.vhdr
+*.vmrk
+*.fif
+*.set
+*.fdt
+
+# Tabular data
+*.csv
+*.parquet
+*.feather
+*.xlsx
+*.xls
+
+# Images & figures
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+*.eps
+*.tiff
+*.tif
+
+# ── Project planning & documentation (local only) ──────────────────────────
+plan/
+
+# ── Temporary / OS files ───────────────────────────────────────────────────
+*.DS_Store
+Thumbs.db
+desktop.ini
 
 # Translations
 *.mo
