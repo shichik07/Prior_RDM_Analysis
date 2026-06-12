@@ -1,148 +1,170 @@
+"""
+Behavioral visualizations — Prior RDM study
+============================================
+Produces two faceted figures:
+  1. Reaction time (median RT per subject) — rows: condition, cols: coherence, color: group
+  2. Error rate — same facet structure
+
+Tech: plotnine (ggplot2 for Python)
+"""
+
 import polars as pl
-import matplotlib.pyplot as plt
-import seaborn as sns
-import os
 import pandas as pd
+import os
+from plotnine import (
+    ggplot, aes,
+    geom_boxplot, geom_jitter, geom_bar, geom_errorbar,
+    facet_grid, scale_fill_manual, scale_color_manual,
+    labs, theme_bw, theme, element_text,
+    coord_cartesian, position_dodge,
+)
+import warnings
+warnings.filterwarnings("ignore")
 
-def load_data(data_dir: str):
-    """Load the processed behavioral data."""
-    cleaned_trials = pl.read_csv(os.path.join(data_dir, "cleaned_trials.csv"))
-    subject_summary = pl.read_csv(os.path.join(data_dir, "subject_summary.csv"))
-    condition_summary = pl.read_csv(os.path.join(data_dir, "condition_summary.csv"))
-    coherence_summary = pl.read_csv(os.path.join(data_dir, "coherence_summary.csv"))
-    return cleaned_trials, subject_summary, condition_summary, coherence_summary
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+DATA_PATH  = "/sessions/amazing-affectionate-fermat/mnt/Prior_RDM_Analysis/data/behavior/processed/trials_primary.csv"
+OUTPUT_DIR = "/sessions/amazing-affectionate-fermat/mnt/Prior_RDM_Analysis/data/behavior/processed/figures"
 
-def plot_rt_distributions(cleaned_trials: pl.DataFrame, output_dir: str):
-    """Plot RT distributions faceted by Group and Condition, colored by Coherence."""
-    df = cleaned_trials.to_pandas()
-    
-    # RT distributions faceted by Group and Condition, colored by Coherence_total
-    # We might want to bin coherence if there are too many levels, 
-    # but based on previous inspection there are only a few.
-    g = sns.FacetGrid(df, row="Group", col="Condition", hue="Coherence_total", height=4, aspect=1.2, palette="viridis")
-    g.map(sns.kdeplot, "RT", fill=True, common_norm=False)
-    g.add_legend(title="Coherence")
-    g.set_axis_labels("Reaction Time (s)", "Density")
-    g.fig.subplots_adjust(top=0.9)
-    g.fig.suptitle("RT Distributions by Group, Condition, and Coherence")
-    plt.savefig(os.path.join(output_dir, "rt_distribution_faceted.png"))
-    plt.close()
+# ---------------------------------------------------------------------------
+# Style constants
+# ---------------------------------------------------------------------------
+GROUP_COLORS   = {"HC": "#2166AC", "PD": "#D6604D"}
+COHERENCE_ORDER = ["0 %", "6.7 %", "13.3 %", "33.3 %"]
+CONDITION_ORDER = ["Monochromatic", "Di null", "Di part", "Di full"]
 
-def plot_performance_metrics(condition_summary: pl.DataFrame, output_dir: str):
-    """Plot mean RT and error rates across conditions."""
-    df = condition_summary.to_pandas()
-    
-    # Mean RT
-    plt.figure(figsize=(10, 6))
-    sns.pointplot(data=df, x="Condition", y="rt_mean", hue="Group", dodge=True, markers=["o", "s"], capsize=.1, palette="viridis")
-    plt.title("Mean Reaction Time by Condition and Group")
-    plt.ylabel("Mean RT (s)")
-    plt.savefig(os.path.join(output_dir, "mean_rt_by_condition.png"))
-    plt.close()
 
-    # Error Rate
-    plt.figure(figsize=(10, 6))
-    sns.barplot(data=df, x="Condition", y="error_rate", hue="Group", palette="viridis")
-    plt.title("Error Rate by Condition and Group")
-    plt.ylabel("Error Rate")
-    plt.savefig(os.path.join(output_dir, "error_rate_by_condition.png"))
-    plt.close()
+def load_data(path: str) -> pl.DataFrame:
+    df = pl.read_csv(path, infer_schema_length=0, ignore_errors=True)
+    return df.with_columns([
+        pl.col("RT").cast(pl.Float64, strict=False),
+        pl.col("Correct").cast(pl.Int64, strict=False),
+        pl.col("Coherence_total").cast(pl.Float64, strict=False),
+    ])
 
-def plot_rt_quantiles(condition_summary: pl.DataFrame, output_dir: str):
-    """Plot RT quantiles faceted by Group and Condition."""
-    # This function uses condition_summary which doesn't have coherence levels.
-    # To see coherence effects on quantiles, we should use coherence_summary if we added quantiles there.
-    # Wait, did I add quantiles to coherence_summary? 
-    # Let's check preprocess.py. Yes, calculate_rt_distributions adds quantiles.
-    pass
 
-def plot_rt_quantiles_faceted(coherence_summary: pl.DataFrame, output_dir: str):
-    """Plot RT quantiles faceted by Group and Condition, showing Coherence effects."""
-    df = coherence_summary.to_pandas()
-    
-    quantile_cols = ["rt_q10", "rt_q30", "rt_q50", "rt_q70", "rt_q90"]
-    df_melted = df.melt(id_vars=["Part_Nr", "Group", "Condition", "Coherence_total"], 
-                        value_vars=quantile_cols, var_name="Quantile", value_name="RT")
-    df_melted["Quantile"] = df_melted["Quantile"].str.replace("rt_q", "").astype(int)
+def add_labels(df: pl.DataFrame) -> pl.DataFrame:
+    df = df.with_columns(
+        pl.when(pl.col("Coherence_total") < 0.001)
+            .then(pl.lit("0 %"))
+        .when(pl.col("Coherence_total") < 0.09)
+            .then(pl.lit("6.7 %"))
+        .when(pl.col("Coherence_total") < 0.20)
+            .then(pl.lit("13.3 %"))
+        .otherwise(pl.lit("33.3 %"))
+        .alias("coherence_label")
+    )
+    condition_map = {"Mono": "Monochromatic", "Di_null": "Di null",
+                     "Di_part": "Di part", "Di_full": "Di full"}
+    return df.with_columns(
+        pl.col("Condition").replace(condition_map).alias("condition_label")
+    )
 
-    g = sns.FacetGrid(df_melted, row="Group", col="Condition", hue="Coherence_total", height=4, aspect=1.2, palette="viridis")
-    g.map_dataframe(sns.lineplot, x="Quantile", y="RT", markers=True)
-    g.add_legend(title="Coherence")
-    g.set_axis_labels("Quantile (%)", "Reaction Time (s)")
-    g.fig.subplots_adjust(top=0.9)
-    g.fig.suptitle("RT Quantiles by Group, Condition, and Coherence")
-    plt.savefig(os.path.join(output_dir, "rt_quantiles_faceted.png"))
-    plt.close()
 
-def plot_coherence_effects(coherence_summary: pl.DataFrame, output_dir: str):
-    """Plot RT and error rates as a function of coherence, overlaying Groups and faceting by Condition."""
-    df = coherence_summary.to_pandas()
-    df["accuracy"] = 1 - df["error_rate"]
-    
-    # Psychometric Curve: Group overlay, Condition facets
-    g = sns.FacetGrid(df, col="Condition", height=5, aspect=1.2)
-    g.map_dataframe(sns.lineplot, x="Coherence_total", y="accuracy", hue="Group", marker="o", palette="viridis")
-    g.add_legend(title="Group")
-    g.set_axis_labels("Coherence Level", "Accuracy")
-    g.fig.subplots_adjust(top=0.85)
-    g.fig.suptitle("Psychometric Curves: HC vs PD by Condition")
-    plt.savefig(os.path.join(output_dir, "psychometric_curves_overlay.png"))
-    plt.close()
+def make_subject_summary(df: pl.DataFrame) -> pd.DataFrame:
+    agg = (
+        df
+        .group_by(["Part_Nr", "Group", "condition_label", "coherence_label"])
+        .agg([
+            pl.col("RT").median().alias("median_rt"),
+            pl.col("Correct").mean().alias("accuracy"),
+            pl.len().alias("n_trials"),
+        ])
+        .with_columns((1 - pl.col("accuracy")).alias("error_rate"))
+    )
 
-    # Chronometric Curve: Group overlay, Condition facets
-    g = sns.FacetGrid(df, col="Condition", height=5, aspect=1.2)
-    g.map_dataframe(sns.lineplot, x="Coherence_total", y="rt_mean", hue="Group", marker="s", palette="viridis")
-    g.add_legend(title="Group")
-    g.set_axis_labels("Coherence Level", "Mean RT (s)")
-    g.fig.subplots_adjust(top=0.85)
-    g.fig.suptitle("Chronometric Curves: HC vs PD by Condition")
-    plt.savefig(os.path.join(output_dir, "chronometric_curves_overlay.png"))
-    plt.close()
+    pdf = agg.to_pandas()
+    present = pdf["condition_label"].unique().tolist()
+    ordered_cond  = [c for c in CONDITION_ORDER if c in present]
+    pdf["condition_label"] = pd.Categorical(pdf["condition_label"], categories=ordered_cond, ordered=True)
+    pdf["coherence_label"] = pd.Categorical(pdf["coherence_label"], categories=COHERENCE_ORDER, ordered=True)
+    pdf["Group"]            = pd.Categorical(pdf["Group"], categories=["HC", "PD"], ordered=True)
+    return pdf
 
-def plot_subject_variability(cleaned_trials: pl.DataFrame, output_dir: str):
-    """Plot individual RT distributions."""
-    df = cleaned_trials.to_pandas()
-    subjects = df["Part_Nr"].unique()
-    
-    # Limit to first 12 subjects for the grid plot to keep it legible
-    sample_subjects = subjects[:12]
-    df_sample = df[df["Part_Nr"].isin(sample_subjects)]
-    
-    g = sns.FacetGrid(df_sample, col="Part_Nr", hue="Group", col_wrap=4, height=3, sharex=True, sharey=False, palette="viridis")
-    g.map(sns.kdeplot, "RT", fill=True)
-    g.set_axis_labels("RT (s)", "Density")
-    g.set_titles("{col_name}")
-    g.add_legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "subject_rt_distributions_sample.png"))
-    plt.close()
+
+def plot_rt(pdf: pd.DataFrame, output_dir: str) -> str:
+    p = (
+        ggplot(pdf, aes(x="Group", y="median_rt", fill="Group", color="Group"))
+        + geom_boxplot(alpha=0.35, outlier_shape="", width=0.55)
+        + geom_jitter(width=0.12, height=0, size=1.8, alpha=0.7)
+        + facet_grid("condition_label ~ coherence_label")
+        + scale_fill_manual(values=GROUP_COLORS)
+        + scale_color_manual(values=GROUP_COLORS)
+        + labs(
+            title="Reaction Time by Condition, Coherence, and Group",
+            x="Group", y="Median RT (s)", fill="Group", color="Group",
+        )
+        + theme_bw()
+        + theme(
+            figure_size=(12, 8),
+            strip_text=element_text(size=9),
+            axis_text_x=element_text(size=9),
+            plot_title=element_text(size=12),
+        )
+    )
+    out = os.path.join(output_dir, "rt_by_condition_coherence_group.png")
+    p.save(out, dpi=150, verbose=False)
+    print(f"Saved: {out}")
+    return out
+
+
+def plot_error_rate(pdf: pd.DataFrame, output_dir: str) -> str:
+    # Group-level summary for bars + SE
+    grp = (
+        pdf
+        .groupby(["Group", "condition_label", "coherence_label"], observed=True)
+        .agg(
+            mean_error=("error_rate", "mean"),
+            se_error=("error_rate", lambda x: x.std(ddof=1) / (len(x) ** 0.5)),
+        )
+        .reset_index()
+    )
+
+    p = (
+        ggplot(grp, aes(x="Group", y="mean_error", fill="Group", color="Group"))
+        + geom_bar(stat="identity", width=0.55, alpha=0.40)
+        + geom_errorbar(
+            aes(ymin="mean_error - se_error", ymax="mean_error + se_error"),
+            width=0.2, size=0.7,
+        )
+        + geom_jitter(
+            data=pdf,
+            mapping=aes(x="Group", y="error_rate", color="Group"),
+            width=0.12, height=0, size=1.8, alpha=0.6, inherit_aes=False,
+        )
+        + facet_grid("condition_label ~ coherence_label")
+        + scale_fill_manual(values=GROUP_COLORS)
+        + scale_color_manual(values=GROUP_COLORS)
+        + coord_cartesian(ylim=(0, 1))
+        + labs(
+            title="Error Rate by Condition, Coherence, and Group",
+            x="Group", y="Error rate", fill="Group", color="Group",
+        )
+        + theme_bw()
+        + theme(
+            figure_size=(12, 8),
+            strip_text=element_text(size=9),
+            axis_text_x=element_text(size=9),
+            plot_title=element_text(size=12),
+        )
+    )
+    out = os.path.join(output_dir, "error_rate_by_condition_coherence_group.png")
+    p.save(out, dpi=150, verbose=False)
+    print(f"Saved: {out}")
+    return out
+
 
 def main():
-    data_dir = "/mnt/d/Data/Dropbox/PhD_Thesis/UniOL/Julius/Prior_RDM_Analysis/data/behavior/processed"
-    output_dir = os.path.join(data_dir, "figures")
-    
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    df = load_data(DATA_PATH)
+    df = add_labels(df)
+    print(f"Loaded {df.shape[0]} trials — {df['Part_Nr'].n_unique()} subjects")
+    pdf = make_subject_summary(df)
+    plot_rt(pdf, OUTPUT_DIR)
+    plot_error_rate(pdf, OUTPUT_DIR)
+    print("Done.")
 
-    print(f"Loading data from {data_dir}...")
-    cleaned_trials, subject_summary, condition_summary, coherence_summary = load_data(data_dir)
-
-    print("Generating RT distribution plots...")
-    plot_rt_distributions(cleaned_trials, output_dir)
-
-    print("Generating performance metric plots...")
-    plot_performance_metrics(condition_summary, output_dir)
-
-    print("Generating quantile plots...")
-    plot_rt_quantiles_faceted(coherence_summary, output_dir)
-
-    print("Generating coherence effect plots...")
-    plot_coherence_effects(coherence_summary, output_dir)
-
-    print("Generating subject variability plots...")
-    plot_subject_variability(cleaned_trials, output_dir)
-
-    print(f"All visualizations saved to {output_dir}")
 
 if __name__ == "__main__":
     main()
