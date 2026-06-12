@@ -16,7 +16,7 @@ cd Prior_RDM_Analysis
 uv sync
 ```
 
-> **External drive**: raw EEG data lives on `E:\priorRDM\Study\EEGData` and is never committed to the repository. Processed outputs go to `data/processed/` (also git-ignored).
+> **External drive**: raw EEG data lives on `/mnt/e/priorRDM/Study/EEGData` (WSL) and is never committed to the repository. Processed outputs go to `data/processed/` (also git-ignored).
 
 ---
 

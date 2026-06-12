@@ -64,7 +64,7 @@ mne.set_log_level("WARNING")
 # ─────────────────────────────────────────────────────────────────────────────
 
 BASE_DIR    = Path(__file__).resolve().parents[3]   # repo root
-EEG_DIR     = Path(r"E:\priorRDM\Study\EEGData")   # raw data on external drive
+EEG_DIR     = Path("/mnt/e/priorRDM/Study/EEGData")  # raw data on external drive (WSL path)
 OUTPUT_DIR  = BASE_DIR / "data" / "processed" / "eeg"
 
 SFREQ_TARGET = 250           # Hz

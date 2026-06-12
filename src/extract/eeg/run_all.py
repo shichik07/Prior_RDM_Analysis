@@ -27,9 +27,9 @@ from datetime import datetime
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Paths — keep in sync with run_pipeline.py
+# Paths — keep in sync with run_pipeline.py 
 # ---------------------------------------------------------------------------
-EEG_DIR    = Path(r"E:\priorRDM\Study\EEGData")
+EEG_DIR    = Path("/mnt/e/priorRDM/Study/EEGData")  # WSL path to external drive
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "data" / "processed" / "eeg"
 
 
