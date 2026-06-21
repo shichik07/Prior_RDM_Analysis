@@ -1,0 +1,7 @@
+default: true
+# Line length - disable for prose (long lines in documentation are fine)
+MD013: false
+# Allow inline HTML (useful for badges and scientific notation)
+MD033: false
+# First line heading - not all docs start with a top-level heading
+MD041: false
