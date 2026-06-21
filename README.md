@@ -1,5 +1,7 @@
 # Prior RDM Analysis
 
+**Last updated:** 2026-06-21
+
 EEG and behavioural analysis pipeline for *Informed Visual Decisions in Parkinson's Disease* — Carl von Ossietzky Universität Oldenburg.
 
 The study examines whether PD patients fail to incorporate prior directional information into both the starting point *and* the drift rate of evidence accumulation, using a random-dot-motion paradigm with four prior conditions (uninformative, mono, partial, full).
@@ -145,10 +147,16 @@ python src/output/behavior/psychometric_plots.py
 ## Code quality
 
 ```bash
-uv run black src/
+uv run ruff format src/
 uv run ruff check src/
-uv run mypy src/
+uv run pyright src/
 uv run pytest
+```
+
+Pre-commit hooks enforce all of the above automatically on each commit. Install once with:
+
+```bash
+pre-commit install
 ```
 
 ---
@@ -157,3 +165,12 @@ uv run pytest
 
 Julius Kricheldorff — julius@kricheldorff.de  
 Repository: https://github.com/shichik07/Prior_RDM_Analysis
+
+---
+
+## Changelog
+
+### 2026-06-21
+- Add `Last updated` header and `Changelog` section.
+- Replace `black` / `mypy` with `ruff-format` / `pyright` in code quality instructions.
+- Add `pre-commit install` step to code quality section.
