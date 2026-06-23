@@ -35,6 +35,7 @@ dependencies = [
     "scikit-learn>=1.3.0",
     "autoreject>=0.4.0",
     "python-picard>=0.7",
+    "asrpy>=0.1.0",
     # Visualization
     "matplotlib>=3.8.0",
     "seaborn>=0.13.0",
@@ -156,6 +157,7 @@ module = [
     "mne_bids.*",
     "autoreject.*",
     "sklearn.*",
+    "asrpy.*",
 ]
 ignore_missing_imports = true
 
